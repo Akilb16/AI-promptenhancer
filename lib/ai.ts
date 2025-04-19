@@ -1,5 +1,9 @@
-import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
+import { HUGGINGFACE_API_KEY, DEFAULT_MODEL } from "./config"
+
+export interface ModelConfig {
+  provider: "huggingface"
+  modelName: string
+}
 
 export interface ClarifyingQuestion {
   id: string
@@ -13,36 +17,25 @@ export interface PromptEnhancementResult {
   suggestions: string[]
 }
 
-export interface ModelConfig {
-  provider: "openai" | "huggingface"
-  modelName: string
-  apiKey?: string
-}
-
-// Get the current model configuration from local storage or use default
+// Get the current model configuration - now always returns the fixed config
 export function getCurrentModel(): ModelConfig {
-  if (typeof window !== "undefined") {
-    const savedConfig = localStorage.getItem("modelConfig")
-    if (savedConfig) {
-      return JSON.parse(savedConfig)
-    }
-  }
-
   return {
-    provider: "openai",
-    modelName: "gpt-4o",
+    provider: "huggingface",
+    modelName: DEFAULT_MODEL,
   }
 }
 
-// Save model configuration to local storage
+// This function is now a no-op since we're using a fixed configuration
 export function saveModelConfig(config: ModelConfig) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("modelConfig", JSON.stringify(config))
-  }
+  // No-op function to maintain API compatibility
+  console.log("Model configuration is fixed to Mixtral 8x7B")
+  return
 }
 
 // Custom function to call Hugging Face API
-async function callHuggingFaceAPI(prompt: string, system: string, apiKey: string, model: string) {
+async function callHuggingFaceAPI(prompt: string, system: string) {
+  const apiKey = HUGGINGFACE_API_KEY
+  const model = DEFAULT_MODEL
   const url = `https://api-inference.huggingface.co/models/${model}`
 
   const response = await fetch(url, {
@@ -70,28 +63,15 @@ async function callHuggingFaceAPI(prompt: string, system: string, apiKey: string
   return result[0]?.generated_text || ""
 }
 
-// Get the appropriate model based on the configuration
-async function generateWithModel(system: string, prompt: string, config: ModelConfig = getCurrentModel()) {
-  if (config.provider === "huggingface") {
-    if (!config.apiKey) {
-      throw new Error("Hugging Face API key is required")
-    }
+// Generate text with the model
+async function generateWithModel(system: string, prompt: string) {
+  const fullResponse = await callHuggingFaceAPI(prompt, system)
 
-    const fullResponse = await callHuggingFaceAPI(prompt, system, config.apiKey, config.modelName)
+  // Extract just the assistant's response
+  const assistantResponseMatch = fullResponse.match(/<\|assistant\|>\n([\s\S]*)/)
+  const text = assistantResponseMatch ? assistantResponseMatch[1].trim() : fullResponse
 
-    // Extract just the assistant's response
-    const assistantResponseMatch = fullResponse.match(/<\|assistant\|>\n([\s\S]*)/)
-    const text = assistantResponseMatch ? assistantResponseMatch[1].trim() : fullResponse
-
-    return { text }
-  }
-
-  // Default to OpenAI
-  return await generateText({
-    model: openai(config.modelName),
-    system,
-    prompt,
-  })
+  return { text }
 }
 
 export async function generateClarifyingQuestions(originalPrompt: string): Promise<ClarifyingQuestion[]> {

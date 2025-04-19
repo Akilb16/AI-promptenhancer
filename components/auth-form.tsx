@@ -29,20 +29,36 @@ export function AuthForm({ type }: AuthFormProps) {
 
     try {
       if (type === "signup") {
+        // Sign up without email verification
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            // Skip email verification
+            emailRedirectTo: undefined,
+            data: {
+              email_confirmed: true,
+            },
           },
         })
 
         if (error) throw error
 
-        toast({
-          title: "Check your email",
-          description: "We sent you a confirmation link to complete your signup.",
+        // Sign in immediately after signup
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
         })
+
+        if (signInError) throw signInError
+
+        toast({
+          title: "Account created",
+          description: "Your account has been created successfully.",
+        })
+
+        router.push("/dashboard")
+        router.refresh()
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,

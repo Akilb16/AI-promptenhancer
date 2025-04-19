@@ -29,7 +29,6 @@ export default async function PromptDetailPage({ params }: { params: { id: strin
   // Parse context if available
   let clarifyingQuestions = []
   let suggestions: string[] = []
-  let modelConfig = { provider: "openai", modelName: "gpt-4o" }
 
   if (prompt.context) {
     try {
@@ -44,10 +43,6 @@ export default async function PromptDetailPage({ params }: { params: { id: strin
           }
           return String(suggestion)
         })
-      }
-
-      if (context.modelConfig) {
-        modelConfig = context.modelConfig
       }
     } catch (e) {
       console.error("Error parsing context:", e)
@@ -74,7 +69,7 @@ export default async function PromptDetailPage({ params }: { params: { id: strin
             <CardTitle>Original Prompt</CardTitle>
             <Badge variant="outline">
               <Sparkles className="h-3 w-3 mr-1 text-primary" />
-              {modelConfig.provider === "openai" ? "OpenAI" : "Hugging Face"}: {modelConfig.modelName.split("/").pop()}
+              Mixtral 8x7B
             </Badge>
           </CardHeader>
           <CardContent>

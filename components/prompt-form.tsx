@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,16 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Loader2, Sparkles, AlertCircle } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 import { createClient } from "@/lib/supabase/client"
-import {
-  type ClarifyingQuestion,
-  generateClarifyingQuestions,
-  generateSuggestions,
-  enhancePrompt,
-  getCurrentModel,
-} from "@/lib/ai"
+import { type ClarifyingQuestion, generateClarifyingQuestions, generateSuggestions, enhancePrompt } from "@/lib/ai"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import Link from "next/link"
+import { DEFAULT_MODEL } from "@/lib/config"
 
 enum PromptStage {
   INITIAL = 0,
@@ -33,27 +27,9 @@ export function PromptForm() {
   const [enhancedPromptText, setEnhancedPromptText] = useState("")
   const [stage, setStage] = useState<PromptStage>(PromptStage.INITIAL)
   const [loading, setLoading] = useState(false)
-  const [modelConfig, setModelConfig] = useState(getCurrentModel())
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const supabase = createClient()
-
-  // Update model config when it changes
-  useEffect(() => {
-    const checkModelConfig = () => {
-      const currentConfig = getCurrentModel()
-      setModelConfig(currentConfig)
-    }
-
-    // Check on mount
-    checkModelConfig()
-
-    // Set up event listener for storage changes
-    if (typeof window !== "undefined") {
-      window.addEventListener("storage", checkModelConfig)
-      return () => window.removeEventListener("storage", checkModelConfig)
-    }
-  }, [])
 
   const handleSubmitOriginalPrompt = async () => {
     if (!originalPrompt.trim()) {
@@ -62,12 +38,6 @@ export function PromptForm() {
         description: "Please enter a prompt to enhance",
         variant: "destructive",
       })
-      return
-    }
-
-    // Check if Hugging Face is selected but no API key is provided
-    if (modelConfig.provider === "huggingface" && !modelConfig.apiKey) {
-      setError("Hugging Face API key is required. Please add it in the settings.")
       return
     }
 
@@ -144,9 +114,7 @@ export function PromptForm() {
               clarifyingQuestions,
               suggestions,
               modelConfig: {
-                provider: modelConfig.provider,
-                modelName: modelConfig.modelName,
-                // Don't store API key in the database
+                modelName: DEFAULT_MODEL,
               },
             }),
           })
@@ -196,7 +164,7 @@ export function PromptForm() {
     return (
       <Badge variant="outline" className="ml-2">
         <Sparkles className="h-3 w-3 mr-1 text-primary" />
-        {modelConfig.provider === "openai" ? "OpenAI" : "Hugging Face"}: {modelConfig.modelName.split("/").pop()}
+        Mixtral 8x7B
       </Badge>
     )
   }
@@ -207,16 +175,7 @@ export function PromptForm() {
         <Alert variant="destructive" className="mb-4">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>
-            {error}
-            {modelConfig.provider === "huggingface" && !modelConfig.apiKey && (
-              <div className="mt-2">
-                <Link href="/dashboard/settings" className="text-primary underline">
-                  Go to settings to add your API key
-                </Link>
-              </div>
-            )}
-          </AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 

@@ -10,27 +10,24 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // If the user is not signed in and the current path is not / or /login or /signup
-  // redirect the user to /
-  if (
-    !session &&
-    !req.nextUrl.pathname.startsWith("/login") &&
-    !req.nextUrl.pathname.startsWith("/signup") &&
-    !req.nextUrl.pathname.startsWith("/auth/callback") &&
-    req.nextUrl.pathname !== "/"
-  ) {
+  // Get the pathname from the URL
+  const path = req.nextUrl.pathname
+
+  // Public routes that don't require authentication
+  const publicRoutes = ["/", "/login", "/signup", "/auth/callback"]
+  const isPublicRoute = publicRoutes.some((route) => path === route || path.startsWith(route))
+
+  // Protected routes that require authentication
+  const isProtectedRoute = path.startsWith("/dashboard")
+
+  // If user is not signed in and trying to access a protected route
+  if (!session && isProtectedRoute) {
     const redirectUrl = new URL("/login", req.url)
     return NextResponse.redirect(redirectUrl)
   }
 
-  // If the user is signed in and the current path is / or /login or /signup
-  // redirect the user to /dashboard
-  if (
-    session &&
-    (req.nextUrl.pathname === "/" ||
-      req.nextUrl.pathname.startsWith("/login") ||
-      req.nextUrl.pathname.startsWith("/signup"))
-  ) {
+  // If user is signed in and trying to access login/signup
+  if (session && (path === "/login" || path === "/signup" || path === "/")) {
     const redirectUrl = new URL("/dashboard", req.url)
     return NextResponse.redirect(redirectUrl)
   }
