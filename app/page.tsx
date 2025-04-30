@@ -1,8 +1,29 @@
+"use client"
+
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Sparkles } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
 
 export default function Home() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (!loading && user) {
+      router.push("/dashboard")
+    }
+  }, [user, loading, router])
+
+  // Check if we're in a preview environment
+  const isPreview =
+    process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+    process.env.NODE_ENV === "development" ||
+    (typeof window !== "undefined" && window.location.hostname === "localhost")
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -43,12 +64,12 @@ export default function Home() {
                   Unlock the full potential of AI with expertly engineered prompts.
                 </p>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
-                  <Link href="/signup">
+                  <Link href={isPreview ? "/dashboard" : "/signup"}>
                     <Button
                       size="lg"
                       className="flex items-center gap-2 bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90"
                     >
-                      Get Started <ArrowRight className="h-4 w-4" />
+                      {isPreview ? "Try Demo" : "Get Started"} <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
                   <Link href="#how-it-works">
@@ -57,6 +78,11 @@ export default function Home() {
                     </Button>
                   </Link>
                 </div>
+                {isPreview && (
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Preview Mode:</strong> Click "Try Demo" to explore without authentication
+                  </p>
+                )}
               </div>
               <div className="relative group">
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary to-purple-600 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>

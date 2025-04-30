@@ -1,21 +1,37 @@
-import type React from "react"
-import { createClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
-import { DashboardNav } from "@/components/dashboard-nav"
+"use client"
 
-export default async function DashboardLayout({
+import type React from "react"
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { DashboardNav } from "@/components/dashboard-nav"
+import { useAuth } from "@/lib/auth-context"
+
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = createClient()
+  const { user, loading } = useAuth()
+  const router = useRouter()
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login")
+    }
+  }, [loading, user, router])
 
-  if (!session) {
-    redirect("/login")
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+      </div>
+    )
+  }
+
+  // If not authenticated, don't render anything (will redirect in useEffect)
+  if (!user) {
+    return null
   }
 
   return (
@@ -30,7 +46,9 @@ export default async function DashboardLayout({
           <div className="flex flex-1 items-center justify-end">
             <nav className="flex items-center">
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">{session.user.email}</span>
+                <span className="text-sm text-muted-foreground">
+                  {user.email} {user.isDemo ? "(Demo Mode)" : ""}
+                </span>
               </div>
             </nav>
           </div>

@@ -1,38 +1,32 @@
-import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
+// Check if we're in a preview environment
+const isPreview = process.env.VERCEL_ENV === "preview" || process.env.NODE_ENV === "development"
+
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
+  // In preview mode, allow all access
+  if (isPreview) {
+    return NextResponse.next()
+  }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  // Get the pathname from the URL
+  // For production, we'll handle auth in the components
+  // This is a simplified middleware that just prevents direct access to dashboard routes
+  // without going through the auth flow
   const path = req.nextUrl.pathname
-
-  // Public routes that don't require authentication
-  const publicRoutes = ["/", "/login", "/signup", "/auth/callback"]
-  const isPublicRoute = publicRoutes.some((route) => path === route || path.startsWith(route))
 
   // Protected routes that require authentication
   const isProtectedRoute = path.startsWith("/dashboard")
 
-  // If user is not signed in and trying to access a protected route
-  if (!session && isProtectedRoute) {
-    const redirectUrl = new URL("/login", req.url)
-    return NextResponse.redirect(redirectUrl)
+  // Check for a session cookie - this is a simple check, not a full auth verification
+  const hasCookie = req.cookies.has("sb-auth-token") || req.cookies.has("supabase-auth-token")
+
+  // If trying to access protected route without a cookie, redirect to login
+  if (isProtectedRoute && !hasCookie) {
+    return NextResponse.redirect(new URL("/login", req.url))
   }
 
-  // If user is signed in and trying to access login/signup
-  if (session && (path === "/login" || path === "/signup" || path === "/")) {
-    const redirectUrl = new URL("/dashboard", req.url)
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  return res
+  return NextResponse.next()
 }
 
 export const config = {

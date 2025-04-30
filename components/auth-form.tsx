@@ -4,76 +4,57 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle, Info } from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
 
 interface AuthFormProps {
   type: "login" | "signup"
 }
 
+// Check if we're in a preview environment
+const isPreview =
+  process.env.NEXT_PUBLIC_VERCEL_ENV === "preview" ||
+  process.env.NODE_ENV === "development" ||
+  (typeof window !== "undefined" && window.location.hostname === "localhost")
+
 export function AuthForm({ type }: AuthFormProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClient()
   const { toast } = useToast()
+  const { signIn, signUp } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
     setLoading(true)
 
     try {
       if (type === "signup") {
-        // Sign up without email verification
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            // Skip email verification
-            emailRedirectTo: undefined,
-            data: {
-              email_confirmed: true,
-            },
-          },
-        })
-
-        if (error) throw error
-
-        // Sign in immediately after signup
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        if (signInError) throw signInError
-
+        await signUp(email, password)
         toast({
           title: "Account created",
           description: "Your account has been created successfully.",
         })
-
-        router.push("/dashboard")
-        router.refresh()
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-
-        if (error) throw error
-
-        router.push("/dashboard")
-        router.refresh()
+        await signIn(email, password)
       }
-    } catch (error: any) {
+
+      router.push("/dashboard")
+    } catch (err: any) {
+      console.error("Authentication error:", err)
+      setError(err.message || "An error occurred during authentication")
       toast({
-        title: "Error",
-        description: error.message || "An error occurred during authentication",
+        title: "Authentication Error",
+        description: err.message || "An error occurred during authentication",
         variant: "destructive",
       })
     } finally {
@@ -89,6 +70,30 @@ export function AuthForm({ type }: AuthFormProps) {
           {type === "login" ? "Enter your credentials to access your account" : "Create an account to get started"}
         </CardDescription>
       </CardHeader>
+
+      {isPreview && (
+        <CardContent>
+          <Alert className="mb-4">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Preview Mode</AlertTitle>
+            <AlertDescription>
+              For demo purposes, use <strong>demo@example.com</strong> with any password to log in, or leave the fields
+              empty.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      )}
+
+      {error && (
+        <CardContent>
+          <Alert variant="destructive" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Authentication Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </CardContent>
+      )}
+
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -96,10 +101,10 @@ export function AuthForm({ type }: AuthFormProps) {
             <Input
               id="email"
               type="email"
-              placeholder="your.email@example.com"
+              placeholder={isPreview ? "demo@example.com" : "your.email@example.com"}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
+              required={!isPreview}
             />
           </div>
           <div className="space-y-2">
@@ -109,7 +114,7 @@ export function AuthForm({ type }: AuthFormProps) {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
+              required={!isPreview}
             />
           </div>
         </CardContent>

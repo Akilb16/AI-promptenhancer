@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { createClient } from "@/lib/supabase/client"
 import { ModelSelector } from "@/components/model-selector"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAuth } from "@/lib/auth-context"
 
 export default function SettingsPage() {
   const [username, setUsername] = useState("")
@@ -18,16 +19,21 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const { toast } = useToast()
-  const supabase = createClient()
+  const { user } = useAuth()
 
   useEffect(() => {
     async function loadProfile() {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
+        if (user?.isDemo) {
+          // Demo user
+          setUsername("demo_user")
+          setFullName("Demo User")
+          setInitialLoading(false)
+          return
+        }
 
         if (user) {
+          const supabase = createClient()
           const { data, error } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
           if (error) throw error
@@ -44,20 +50,28 @@ export default function SettingsPage() {
       }
     }
 
-    loadProfile()
-  }, [supabase])
+    if (user) {
+      loadProfile()
+    }
+  }, [user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+      if (user?.isDemo) {
+        // Demo mode - just show success message
+        toast({
+          title: "Profile updated (Demo)",
+          description: "In demo mode, profile updates are not saved.",
+        })
+        return
+      }
 
       if (!user) throw new Error("User not found")
 
+      const supabase = createClient()
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -96,7 +110,10 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Profile Settings</h1>
-        <p className="text-muted-foreground">Manage your account information</p>
+        <p className="text-muted-foreground">
+          Manage your account information
+          {user?.isDemo && " (Demo Mode)"}
+        </p>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">

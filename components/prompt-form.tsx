@@ -12,6 +12,8 @@ import { type ClarifyingQuestion, generateClarifyingQuestions, generateSuggestio
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { DEFAULT_MODEL } from "@/lib/config"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
 
 enum PromptStage {
   INITIAL = 0,
@@ -20,16 +22,42 @@ enum PromptStage {
   ENHANCED = 3,
 }
 
+// Demo data for preview mode
+const demoClarifyingQuestions: ClarifyingQuestion[] = [
+  {
+    id: "q-1",
+    question: "What is the specific purpose or goal of this content?",
+    answer: "",
+  },
+  {
+    id: "q-2",
+    question: "Who is the target audience for this content?",
+    answer: "",
+  },
+  {
+    id: "q-3",
+    question: "What tone and style would be most appropriate for this content?",
+    answer: "",
+  },
+]
+
+const demoSuggestions = [
+  "Be more specific about the desired outcome or deliverable",
+  "Include information about the target audience to better tailor the content",
+  "Specify any formatting requirements or constraints",
+]
+
 export function PromptForm() {
   const [originalPrompt, setOriginalPrompt] = useState("")
   const [clarifyingQuestions, setClarifyingQuestions] = useState<ClarifyingQuestion[]>([])
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [enhancedPromptText, setEnhancedPromptText] = useState("")
-  const [stage, setStage] = useState<PromptStage>(PromptStage.INITIAL)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stage, setStage] = useState<PromptStage>(PromptStage.INITIAL)
   const { toast } = useToast()
-  const supabase = createClient()
+  const router = useRouter()
+  const { user } = useAuth()
 
   const handleSubmitOriginalPrompt = async () => {
     if (!originalPrompt.trim()) {
@@ -44,25 +72,34 @@ export function PromptForm() {
     setError(null)
     setLoading(true)
     try {
-      // Generate clarifying questions
-      const questions = await generateClarifyingQuestions(originalPrompt)
-      setClarifyingQuestions(questions.map((q) => ({ ...q, answer: "" })))
+      // In demo mode, use demo data
+      if (user?.isDemo) {
+        // Simulate API delay
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        setClarifyingQuestions(demoClarifyingQuestions.map((q) => ({ ...q, answer: "" })))
+        setSuggestions(demoSuggestions)
+        setStage(PromptStage.CLARIFYING)
+      } else {
+        // Generate clarifying questions
+        const questions = await generateClarifyingQuestions(originalPrompt)
+        setClarifyingQuestions(questions.map((q) => ({ ...q, answer: "" })))
 
-      // Generate suggestions
-      const promptSuggestions = await generateSuggestions(originalPrompt)
+        // Generate suggestions
+        const promptSuggestions = await generateSuggestions(originalPrompt)
 
-      // Ensure suggestions is an array of strings
-      const processedSuggestions = promptSuggestions.map((suggestion) => {
-        // If suggestion is an object with a 'suggestion' property, extract it
-        if (typeof suggestion === "object" && suggestion !== null && "suggestion" in suggestion) {
-          return String(suggestion.suggestion)
-        }
-        // Otherwise, convert to string
-        return String(suggestion)
-      })
+        // Ensure suggestions is an array of strings
+        const processedSuggestions = promptSuggestions.map((suggestion) => {
+          // If suggestion is an object with a 'suggestion' property, extract it
+          if (typeof suggestion === "object" && suggestion !== null && "suggestion" in suggestion) {
+            return String(suggestion.suggestion)
+          }
+          // Otherwise, convert to string
+          return String(suggestion)
+        })
 
-      setSuggestions(processedSuggestions)
-      setStage(PromptStage.CLARIFYING)
+        setSuggestions(processedSuggestions)
+        setStage(PromptStage.CLARIFYING)
+      }
     } catch (error: any) {
       setError(error.message || "An error occurred while processing your prompt")
       toast({
@@ -94,41 +131,55 @@ export function PromptForm() {
     setError(null)
     setLoading(true)
     try {
-      // Generate enhanced prompt
-      const enhanced = await enhancePrompt(originalPrompt, clarifyingQuestions)
-      setEnhancedPromptText(enhanced)
-      setStage(PromptStage.ENHANCED)
+      // In demo mode, use demo data
+      if (user?.isDemo) {
+        // Simulate API delay
+        await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      // Save to database
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data: promptData, error: promptError } = await supabase
-          .from("prompts")
-          .insert({
-            user_id: user.id,
-            original_prompt: originalPrompt,
-            enhanced_prompt: enhanced,
-            context: JSON.stringify({
-              clarifyingQuestions,
-              suggestions,
-              modelConfig: {
-                modelName: DEFAULT_MODEL,
-              },
-            }),
-          })
-          .select()
+        // Generate a demo enhanced prompt based on the original prompt and answers
+        const enhancedDemo = `${originalPrompt} (Enhanced)\n\nThis enhanced prompt includes specific details about ${
+          clarifyingQuestions[0].answer
+        }. It's tailored for ${clarifyingQuestions[1].answer} and uses a ${
+          clarifyingQuestions[2].answer
+        } tone. The prompt is structured to provide clear instructions and context, ensuring the AI model delivers exactly what you need.`
 
-        if (promptError) {
-          console.error("Error saving prompt:", promptError)
-        } else if (promptData && promptData.length > 0) {
-          // Save prompt version
-          await supabase.from("prompt_versions").insert({
-            prompt_id: promptData[0].id,
-            version_number: 1,
-            prompt_text: enhanced,
-          })
+        setEnhancedPromptText(enhancedDemo)
+        setStage(PromptStage.ENHANCED)
+      } else {
+        // Generate enhanced prompt
+        const enhanced = await enhancePrompt(originalPrompt, clarifyingQuestions)
+        setEnhancedPromptText(enhanced)
+        setStage(PromptStage.ENHANCED)
+
+        // Save to database
+        if (user) {
+          const supabase = createClient()
+          const { data: promptData, error: promptError } = await supabase
+            .from("prompts")
+            .insert({
+              user_id: user.id,
+              original_prompt: originalPrompt,
+              enhanced_prompt: enhanced,
+              context: JSON.stringify({
+                clarifyingQuestions,
+                suggestions,
+                modelConfig: {
+                  modelName: DEFAULT_MODEL,
+                },
+              }),
+            })
+            .select()
+
+          if (promptError) {
+            console.error("Error saving prompt:", promptError)
+          } else if (promptData && promptData.length > 0) {
+            // Save prompt version
+            await supabase.from("prompt_versions").insert({
+              prompt_id: promptData[0].id,
+              version_number: 1,
+              prompt_text: enhanced,
+            })
+          }
         }
       }
     } catch (error: any) {

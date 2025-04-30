@@ -1,12 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Home, History, Settings, LogOut } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
-import { useRouter } from "next/navigation"
+import { useToast } from "@/components/ui/use-toast"
+import { useAuth } from "@/lib/auth-context"
 
 const items = [
   {
@@ -29,12 +29,27 @@ const items = [
 export function DashboardNav() {
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createClient()
+  const { toast } = useToast()
+  const { signOut } = useAuth()
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/")
-    router.refresh()
+    try {
+      await signOut()
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully.",
+      })
+      router.push("/")
+    } catch (error) {
+      console.error("Error signing out:", error)
+      toast({
+        title: "Error",
+        description: "An error occurred while signing out.",
+        variant: "destructive",
+      })
+      // Even if there's an error, redirect to home
+      router.push("/")
+    }
   }
 
   return (
